@@ -1,0 +1,21 @@
+{
+  "id": "/",
+  "name": "剧本杀写作台",
+  "short_name": "写作台",
+  "description": "城限情感本的离线写作台：角色 × 幕次",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait",
+  "background_color": "#FBF7F2",
+  "theme_color": "#FBF7F2",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "categories": ["productivity", "books"],
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
