@@ -31,6 +31,10 @@
     background-image:radial-gradient(circle at 1px 1px, rgba(196,176,160,.16) 1px, transparent 0);
     background-size:17px 17px;color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.7;overflow:hidden}
   button,input,textarea,select{font-family:inherit;font-size:inherit;color:inherit;background:none;border:0;outline:none}
+  select{cursor:pointer}
+  select.inp{background:#FCF8F4 url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23B5A99E'/%3E%3C/svg%3E") no-repeat right 12px center;
+    padding-right:30px;appearance:none;-webkit-appearance:none}
+  .li .go{color:var(--coral)}
   button{cursor:pointer}
   .wrap{height:100%;display:flex;flex-direction:column}
   /* ---------- 顶栏 ---------- */
@@ -289,6 +293,8 @@
 
 <div class="sheet-mask" id="mask"></div>
 <div class="sheet-box" id="sheet"></div>
+<div class="sheet-mask" id="pmask"></div>
+<div class="sheet-box" id="pick"></div>
 <div id="edit"></div>
 
 <input type="file" id="fJson" accept=".json" style="display:none">
@@ -661,21 +667,14 @@ function nameOf(n){ for(var i=0;i<S.cast.length;i++) if(S.cast[i].name===n) retu
 /* ---------------- 弹层 ---------------- */
 function openSheet(h){
   var s=$("sheet");
-  s.innerHTML=h; s.classList.add("on"); $("mask").classList.add("on");
+  if(!s) return;
+  s.innerHTML=h; s.classList.add("on");
+  if($("mask")) $("mask").classList.add("on");
   document.body.classList.add("sheeton");
   /* 位置直接写内联样式，不依赖样式表，避免面板停在屏幕外看不见 */
-  var wide=window.matchMedia("(min-width:760px)").matches;
-  s.style.position="fixed"; s.style.zIndex="61"; s.style.background="var(--card)";
-  s.style.boxShadow="0 -10px 40px rgba(120,100,85,.22)"; s.style.overflowY="auto";
-  s.style.padding="20px 18px 26px"; s.style.maxHeight="86vh"; s.style.opacity="1";
-  s.style.pointerEvents="auto"; s.style.visibility="visible"; s.style.margin="0 auto";
-  if(wide){
-    s.style.left="50%"; s.style.top="50%"; s.style.right="auto"; s.style.bottom="auto";
-    s.style.width="520px"; s.style.borderRadius="20px"; s.style.transform="translate(-50%,-50%)";
-  } else {
-    s.style.left="0"; s.style.right="0"; s.style.bottom="0"; s.style.top="auto";
-    s.style.width="auto"; s.style.borderRadius="22px 22px 0 0"; s.style.transform="none";
-  }
+  try{
+    s.style.zIndex="61"; place(s,true);
+  }catch(err){}
 }
 function closeSheet(){
   $("sheet").classList.remove("on"); $("mask").classList.remove("on");
@@ -695,6 +694,78 @@ function confirmBox(title,text,cb){
    '<div class="row" style="margin-top:14px"><button class="btn pri" id="_y">确定</button><button class="btn" id="_n">取消</button></div>');
   $("_y").onclick=function(){closeSheet();cb()}; $("_n").onclick=closeSheet;
 }
+/* 文字方式的备份 / 恢复（App 里不能下载文件、不能弹文件选择器） */
+function openText(title,text,isImport){
+  openSheet('<h3>'+esc(title)+'</h3>'+
+   '<div class="mu">'+(isImport?'把之前备份的那段文字粘到下面，然后点「导入」。':'点「复制」，然后粘到微信收藏或备忘录里存着。')+'</div>'+
+   '<textarea class="inp" id="_txt" rows="11" style="margin-top:8px;font-size:12px;line-height:1.6" spellcheck="false">'+esc(text||"")+'</textarea>'+
+   '<div class="row" style="margin-top:12px">'+
+   (isImport?'<button class="btn pri" id="_imp">导入</button>':'<button class="btn pri" id="_cp">复制</button>')+
+   '<button class="btn" id="_cls">关闭</button></div>');
+  if(isImport){
+    $("_imp").onclick=function(){
+      try{
+        var o=JSON.parse($("_txt").value);
+        if(!o.acts) throw 0;
+        if(!confirm("导入会覆盖当前全部内容，继续？")) return;
+        S=o; save(1); closeSheet(); go("");
+      }catch(e){ alert("这段文字读不出来，确认是备份的那一整段吗？") }
+    };
+  } else {
+    $("_cp").onclick=function(){
+      var t=$("_txt"); t.focus(); t.select();
+      var ok=false;
+      try{ ok=document.execCommand("copy") }catch(e){}
+      if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(t.value).catch(function(){}) }
+      if($("_txt").setSelectionRange) try{ $("_txt").setSelectionRange(0,t.value.length) }catch(e){}
+      alert(ok?"已复制。去微信收藏或备忘录粘贴保存。":"已全选，请手动长按 → 复制。");
+    };
+  }
+  $("_cls").onclick=closeSheet;
+}
+/* 所有下拉框改成应用自绘面板：原生控件在 App 里样式管不了、有时还点不开 */
+function pickFrom(s){
+  var opts=Array.prototype.map.call(s.options,function(o,i){return {t:o.textContent,i:i}});
+  var box=$("pick"), mk=$("pmask");
+  if(!box) return;
+  var h='<h3>请选择</h3>';
+  opts.forEach(function(o){
+    h+='<button class="li" data-i="'+o.i+'" style="margin-bottom:6px"><span class="t">'+esc(o.t)+'</span>'+
+       (o.i===s.selectedIndex?'<span class="go">✓</span>':'')+'</button>';
+  });
+  h+='<div class="row" style="margin-top:8px"><button class="btn" id="_pcancel">取消</button></div>';
+  box.innerHTML=h; box.classList.add("on"); if(mk) mk.classList.add("on");
+  place(box,true); box.style.zIndex="72";
+  box.addEventListener("click",function(ev){
+    var b=ev.target.closest("button[data-i]");
+    if(b){ s.selectedIndex=+b.getAttribute("data-i");
+      box.classList.remove("on"); if(mk) mk.classList.remove("on"); box.style.transform="";
+      try{ s.dispatchEvent(new Event("change",{bubbles:true})) }catch(e){} return; }
+    if(ev.target.id==="_pcancel"){ box.classList.remove("on"); if(mk) mk.classList.remove("on"); box.style.transform=""; }
+  });
+  if(mk) mk.onclick=function(){ box.classList.remove("on"); if(mk) mk.classList.remove("on"); box.style.transform="" };
+}
+function place(el,force){
+  var wide=window.matchMedia("(min-width:760px)").matches;
+  el.style.position="fixed"; el.style.background="var(--card)";
+  el.style.boxShadow="0 -10px 40px rgba(120,100,85,.22)"; el.style.overflowY="auto";
+  el.style.padding="20px 18px 26px"; el.style.maxHeight="86vh"; el.style.opacity="1";
+  el.style.pointerEvents="auto"; el.style.visibility="visible"; el.style.margin="0 auto";
+  el.style.zIndex=el.style.zIndex||"61";
+  if(wide){
+    el.style.left="50%"; el.style.top="50%"; el.style.right="auto"; el.style.bottom="auto";
+    el.style.width="520px"; el.style.borderRadius="20px"; el.style.transform="translate(-50%,-50%)";
+  } else {
+    el.style.left="0"; el.style.right="0"; el.style.bottom="0"; el.style.top="auto";
+    el.style.width="auto"; el.style.borderRadius="22px 22px 0 0"; el.style.transform="none";
+  }
+}
+document.addEventListener("click",function(e){
+  var s=e.target.closest("select");
+  if(!s) return;
+  e.preventDefault(); e.stopPropagation();
+  pickFrom(s);
+},true);
 
 /* ---------------- 全屏编辑器（所有文本编辑都走这里） ---------------- */
 function openEdit(o){ r.edit=o; document.body.classList.add("editing"); render() }
@@ -836,7 +907,16 @@ function depthOf(){
 var curDepth=0;
 function render(){
   var d=depthOf();
+  /* 同级重绘（加关系、勾选、加字段…）保持滚动位置，只有换页才回到顶部 */
+  var v0=document.getElementById("view"), g0=document.querySelector(".gside");
+  var s0=v0?v0.scrollTop:0, s1=g0?g0.scrollTop:0;
+  var same=(d===curDepth);
   renderInner(); startSess(pageKey());
+  if(same){
+    var v1=document.getElementById("view"), g1=document.querySelector(".gside");
+    if(v1) v1.scrollTop=s0;
+    if(g1) g1.scrollTop=s1;
+  }
   if(!inPop && d>curDepth){ try{ history.pushState({d:Date.now()},""); histDepth++ }catch(e){} }
   curDepth=d;
 }
@@ -1230,9 +1310,9 @@ function prefHTML(){
    '<input type="range" min="16" max="56" step="2" id="_lrg" value="'+(L.rg||28)+'" style="width:100%">'+
    '<div class="lbl">预览</div><div data-rule style="height:80px;border:1.5px solid var(--line);border-radius:10px;background-color:var(--card)"></div></div>'+
   '<div class="card"><div class="ti">数据</div><div class="row" style="margin-top:10px">'+
-   '<button class="btn" id="_bak">备份文件</button><button class="btn" id="_res">恢复</button>'+
+   '<button class="btn" id="_bak">备份（显示全文）</button><button class="btn" id="_res">恢复（粘贴导入）</button>'+
    '<button class="btn" id="_mdex">导出 Markdown</button></div>'+
-   '<div class="mu" style="margin-top:8px">备份文件含全部内容，换设备时用它搬。</div></div>'+
+   '<div class="mu" style="margin-top:8px">App 里不能下载文件，所以改成文字方式：点备份会显示全部内容，复制后存到微信收藏；恢复时把那段文字粘回来。</div></div>'+
   '<div class="card"><div class="ti">关于</div><div class="mu" style="margin-top:6px">HY兔 · 剧本创作工作台　版本 '+BUILD+'</div></div></div>';
 }
 function bindPref(){
@@ -1257,8 +1337,8 @@ function bindPref(){
     if(t.id==="_bgc"){L.bg="color";save(1);render()}
     else if(t.id==="_bgi") $("fBg").click();
     else if(t.id==="_bgx"){L.bgi="";L.bg="color";save(1);render()}
-    else if(t.id==="_bak") dl("HY兔备份-"+stamp()+".json",JSON.stringify(S),"application/json");
-    else if(t.id==="_res") $("fJson").click();
+    else if(t.id==="_bak") openText("备份 · "+stamp(),JSON.stringify(S),false);
+    else if(t.id==="_res") openText("恢复", "", true);
     else if(t.id==="_mdex"){
       var o="# HY兔导出 · "+stamp()+"\n";
       S.docs.forEach(function(d){o+="\n## "+d.title+"\n\n"+stripTags(d.body)+"\n"});
@@ -1268,7 +1348,7 @@ function bindPref(){
           o+="\n## "+p.name+" · "+a.name+"\n";
           f.fields.forEach(function(x){ o+="\n### "+x.n+"\n\n"+stripTags(x.v)+"\n" }) });
       });
-      dl("HY兔-"+stamp()+".md",o,"text/markdown");
+      openText("导出 Markdown · "+stamp(), o, false);
     }
     else if(t.id==="_addfac") ask("新阵营","名字","",function(n){ if(!n) return;
       n=n.trim(); if(S.factions.indexOf(n)<0) S.factions.push(n); save(1); render() });
@@ -2369,7 +2449,7 @@ function bindGraph(){
 }
 
 /* ---------------- 启动 ---------------- */
-var BUILD="2026-10-06 · v12";
+var BUILD="2026-10-06 · v13";
 if(navigator.serviceWorker&&navigator.serviceWorker.getRegistration){
   navigator.serviceWorker.getRegistration().then(function(x){ if(x) x.update() }).catch(function(){});
 }
